@@ -9,8 +9,12 @@ from app.core.config import get_current_user
 router = APIRouter()
 
 @router.post("/", response_model=ExpenseOut, status_code=201)
-def add_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
-    db_expense = Expense(**expense.dict(), user_id=1)  # TEMP: hardcoded user_id (no auth)
+def add_expense(
+    expense: ExpenseCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    db_expense = Expense(**expense.dict(), user_id=user.id)
     db.add(db_expense)
     db.commit()
     db.refresh(db_expense)
@@ -22,8 +26,9 @@ def get_expenses(
     start_date: date = Query(None),
     end_date: date = Query(None),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    query = db.query(Expense)
+    query = db.query(Expense).filter(Expense.user_id == user.id)
     if category:
         query = query.filter(Expense.category == category)
     if start_date:
@@ -33,8 +38,14 @@ def get_expenses(
     return query.order_by(Expense.expense_date.desc()).all()
 
 @router.delete("/{expense_id}", status_code=204)
-def delete_expense(expense_id: int, db: Session = Depends(get_db)):
-    expense = db.query(Expense).filter(Expense.id == expense_id).first()
+def delete_expense(
+    expense_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    expense = db.query(Expense).filter(
+        Expense.id == expense_id, Expense.user_id == user.id
+    ).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
     db.delete(expense)
