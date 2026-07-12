@@ -1,9 +1,9 @@
 import os
+import bcrypt
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.models import User
@@ -13,17 +13,19 @@ SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_key_change_me")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-# Password Hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# Bearer Token Scheme (paste token directly, no OAuth2 form)
-bearer_scheme = HTTPBearer()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # Convert string to bytes, hash it, and convert back to string for DB
+    password_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    plain_bytes = plain_password.encode('utf-8')
+    hashed_bytes = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(plain_bytes, hashed_bytes)
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
@@ -31,11 +33,7 @@ def create_access_token(data: dict) -> str:
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
-) -> User:
-    token = credentials.credentials
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
