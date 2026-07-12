@@ -21,13 +21,10 @@ def create_budget(budget: BudgetCreate, db: Session = Depends(get_db)):
     return db_budget
 
 @router.get("/", response_model=list[BudgetOut])
-def get_budgets(month: str = None, db: Session = Depends(get_db)):
-    query = db.query(Budget)
-    if month:
-        query = query.filter(Budget.month == month)
-    budgets = query.all()
+def get_budgets(month: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)): # ADDED user auth back here!
+    budgets = db.query(Budget).filter(Budget.user_id == user.id, Budget.month == month).all()
+    
     results = []
-
     for b in budgets:
         year, mon = map(int, b.month.split('-'))
         start_date = f"{b.month}-01"

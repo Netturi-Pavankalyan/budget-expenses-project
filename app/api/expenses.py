@@ -9,11 +9,7 @@ from app.core.config import get_current_user
 router = APIRouter()
 
 @router.post("/", response_model=ExpenseOut, status_code=201)
-def add_expense(
-    expense: ExpenseCreate,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
+def add_expense(expense: ExpenseCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     db_expense = Expense(**expense.dict(), user_id=user.id)
     db.add(db_expense)
     db.commit()
@@ -25,8 +21,8 @@ def get_expenses(
     category: str = Query(None),
     start_date: date = Query(None),
     end_date: date = Query(None),
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db), 
+    user: User = Depends(get_current_user) # MUST BE HERE
 ):
     query = db.query(Expense).filter(Expense.user_id == user.id)
     if category:

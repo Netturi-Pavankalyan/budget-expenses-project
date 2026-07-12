@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import API from '../api/axiosConfig';
 
 export default function Budgets() {
   const navigate = useNavigate();
   
-  // Get current month in YYYY-MM format for the API
   const currentDate = new Date();
   const [currentMonth, setCurrentMonth] = useState(currentDate.toISOString().slice(0, 7)); 
   const [budgets, setBudgets] = useState([]);
+  
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false); // State for the loading spinner
+  const [newCategory, setNewCategory] = useState('');
+  const [newAmount, setNewAmount] = useState('');
+  const [newMonth, setNewMonth] = useState(currentMonth);
 
   // Auth Protection
   useEffect(() => {
@@ -33,15 +39,50 @@ export default function Budgets() {
     fetchBudgets();
   }, [currentMonth]);
 
+  // Handle Save New Budget
+  const handleAddBudget = async (e) => {
+    e.preventDefault();
+    if (!newCategory || !newAmount) {
+      return;
+    }
+
+    setLoading(true); // Start circular loading
+
+    try {
+      await API.post('/budgets/', {
+        month: newMonth,
+        category: newCategory,
+        budget_amount: parseFloat(newAmount)
+      });
+      
+      setIsModalOpen(false); // Close modal only AFTER successful save
+      resetModal();
+      fetchBudgets(); 
+    } catch (error) {
+      console.error("Failed to save budget.", error);
+    } finally {
+      setLoading(false); // Stop circular loading
+    }
+  };
+
+  const resetModal = () => {
+    setNewCategory('');
+    setNewAmount('');
+    setNewMonth(currentMonth);
+  };
+
   // Month Navigation Logic
   const changeMonth = (direction) => {
     const [year, month] = currentMonth.split('-').map(Number);
     const date = new Date(year, month - 1 + direction);
-    setCurrentMonth(date.toISOString().slice(0, 7));
+    const newMonthStr = date.toISOString().slice(0, 7);
+    setCurrentMonth(newMonthStr);
+    setNewMonth(newMonthStr);
   };
 
   // Format YYYY-MM to "October 2023"
   const formatMonth = (dateStr) => {
+    if (!dateStr) return '';
     const date = new Date(dateStr + '-01T00:00:00');
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
@@ -53,7 +94,7 @@ export default function Budgets() {
   return (
     <div className="flex min-h-screen bg-[#0a0a0f] text-white">
       <Sidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 relative overflow-hidden">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-bold">Budgets</h1>
           <div className="flex items-center space-x-4">
@@ -62,13 +103,20 @@ export default function Budgets() {
               <span className="text-gray-300 min-w-[120px] text-center">{formatMonth(currentMonth)}</span>
               <ChevronRight size={16} className="text-gray-400 cursor-pointer hover:text-white" onClick={() => changeMonth(1)} />
             </div>
+            
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              Add budget
+            </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {budgets.length === 0 ? (
             <div className="col-span-3 text-center text-gray-500 py-12 bg-[#12121a] rounded-xl border border-gray-800">
-              No budgets set for this month.
+              No budgets set for this month. Click "Add budget" to create one!
             </div>
           ) : (
             budgets.map((item) => {
@@ -115,6 +163,75 @@ export default function Budgets() {
             <div className="text-right">
               <p className="text-gray-400 text-sm">Actual Spend</p>
               <p className="text-2xl font-bold text-blue-400">${totalSpent.toFixed(2)}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Add Budget Modal */}
+        {isModalOpen && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-[100]">
+            <div className="bg-[#12121a] w-full max-w-md p-6 rounded-xl border border-gray-700 space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">Add New Budget</h2>
+                <button onClick={() => { setIsModalOpen(false); resetModal(); }} disabled={loading}><X size={24} className="text-gray-400 hover:text-white" /></button>
+              </div>
+              
+              <form onSubmit={handleAddBudget}>
+                <div className="mb-4">
+                  <label className="block text-xs text-gray-400 mb-2">CATEGORY</label>
+                  <input 
+                    type="text" 
+                    value={newCategory} 
+                    onChange={(e) => setNewCategory(e.target.value)} 
+                    placeholder="e.g., Groceries, Housing" 
+                    className="w-full bg-[#1e1e2e] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" 
+                    required 
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-xs text-gray-400 mb-2">MONTH</label>
+                  <input 
+                    type="month" 
+                    value={newMonth} 
+                    onChange={(e) => setNewMonth(e.target.value)} 
+                    className="w-full bg-[#1e1e2e] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark]" 
+                    required 
+                  />
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-xs text-gray-400 mb-2">BUDGET AMOUNT ($)</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    value={newAmount} 
+                    onChange={(e) => setNewAmount(e.target.value)} 
+                    placeholder="0.00" 
+                    className="w-full bg-[#1e1e2e] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" 
+                    required 
+                  />
+                </div>
+
+                <div className="flex space-x-4">
+                  <button type="button" onClick={() => { setIsModalOpen(false); resetModal(); }} disabled={loading} className="flex-1 py-3 border border-gray-700 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">Cancel</button>
+                  
+                  {/* Circular Loading Spinner added here */}
+                  <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed">
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Budget"
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

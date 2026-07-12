@@ -1,9 +1,9 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Receipt, Wallet, PlusCircle } from 'lucide-react';
+import { LayoutDashboard, Receipt, Wallet } from 'lucide-react';
 
 export default function Sidebar() {
   return (
-    <div className="w-64 min-h-screen bg-[#12121a] border-r border-gray-800 flex flex-col justify-between p-6">
+    <div className="w-64 min-h-screen bg-[#12121a] border-r border-gray-800 flex flex-col p-6">
       <div>
         <h1 className="text-xl font-bold text-white mb-10">
           Budget <span className="text-blue-500">Tracker</span>
@@ -29,11 +29,6 @@ export default function Sidebar() {
           ))}
         </nav>
       </div>
-      
-      <button className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition-colors">
-        <PlusCircle size={20} />
-        <span>Add Expense</span>
-      </button>
     </div>
   );
 }
