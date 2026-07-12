@@ -2,17 +2,17 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Uses SQLite for easy local running. Change to Postgres URL in .env for production
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./budget_tracker.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./budget_tracker.db")
 
-if "sqlite" in SQLALCHEMY_DATABASE_URL:
-    connect_args = {"check_same_thread": False}
-else:
-    # Isolate this project's tables in their own schema, since the
-    # database instance is shared with another project.
-    connect_args = {"options": "-csearch_path=budget_tracker"}
+# CRITICAL FIX FOR PYTHON 3.14: Force psycopg instead of psycopg2
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=connect_args)
+connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
