@@ -7,10 +7,11 @@ import API from '../api/axiosConfig';
 export default function Budgets({ isDark, toggleTheme }) {
   const navigate = useNavigate();
   const currentDate = new Date();
-  const [currentMonth, setCurrentMonth] = useState(currentDate.toISOString().slice(0, 7)); 
+  const [currentMonth, setCurrentMonth] = useState(currentDate.toISOString().slice(0, 7));
   const [budgets, setBudgets] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newMonth, setNewMonth] = useState(currentMonth);
@@ -28,12 +29,30 @@ export default function Budgets({ isDark, toggleTheme }) {
 
   const handleAddBudget = async (e) => {
     e.preventDefault();
-    if (!newCategory || !newAmount) return;
+    setErrorMsg('');
+    if (!newCategory || !newAmount) {
+      setErrorMsg('Please fill in category and amount.');
+      return;
+    }
     setLoading(true);
     try {
       await API.post('/budgets/', { month: newMonth, category: newCategory, budget_amount: parseFloat(newAmount) });
       setIsModalOpen(false); resetModal(); fetchBudgets();
-    } catch (error) { console.error(error); }
+    } catch (error) {
+      console.error(error);
+      if (error.response) {
+        const detail = error.response.data?.detail;
+        setErrorMsg(
+          typeof detail === 'string' ? detail :
+          Array.isArray(detail) ? detail.map(d => d.msg).join(', ') :
+          `Failed to save (status ${error.response.status}).`
+        );
+      } else if (error.request) {
+        setErrorMsg('No response from server — check your connection or the backend URL.');
+      } else {
+        setErrorMsg('Something went wrong while saving.');
+      }
+    }
     finally { setLoading(false); }
   };
 
@@ -44,7 +63,7 @@ export default function Budgets({ isDark, toggleTheme }) {
     } catch (error) { console.error("Failed to delete", error) }
   };
 
-  const resetModal = () => { setNewCategory(''); setNewAmount(''); setNewMonth(currentMonth); };
+  const resetModal = () => { setNewCategory(''); setNewAmount(''); setNewMonth(currentMonth); setErrorMsg(''); };
   const changeMonth = (direction) => {
     const [y, m] = currentMonth.split('-').map(Number);
     const date = new Date(y, m - 1 + direction);
@@ -56,7 +75,7 @@ export default function Budgets({ isDark, toggleTheme }) {
   const totalSpent = budgets.reduce((acc, item) => acc + item.used_amount, 0);
 
   return (
-    <div className="flex min-h-screen">
+    <div className={`flex min-h-screen transition-colors ${isDark ? 'bg-[#0a0a0f] text-white' : 'bg-gray-100 text-black'}`}>
       <Sidebar isDark={isDark} toggleTheme={toggleTheme} />
       <main className="flex-1 p-8 overflow-y-auto relative">
         <div className="flex justify-between items-center mb-8">
@@ -83,7 +102,6 @@ export default function Budgets({ isDark, toggleTheme }) {
                     <h3 className="font-semibold">{item.category}</h3>
                     <div className="flex items-center space-x-2">
                       <span className={`text-xs px-2 py-1 rounded-full ${isOver ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>{item.percentage_consumed.toFixed(1)}%</span>
-                      {/* DELETE BUTTON */}
                       <button onClick={() => handleDelete(item.id)} className="text-gray-600 hover:text-red-500"><X size={18} /></button>
                     </div>
                   </div>
@@ -105,7 +123,6 @@ export default function Budgets({ isDark, toggleTheme }) {
           </div>
         )}
 
-        {/* Keep the Add Modal here exactly as it was in the previous step, just add isDark={isDark} to Sidebar if you copy it */}
         {isModalOpen && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-[100]">
             <div className={`w-full max-w-md p-6 rounded-xl border space-y-6 ${isDark ? 'bg-[#12121a] border-gray-700' : 'bg-white border-gray-300'}`}>
@@ -113,7 +130,12 @@ export default function Budgets({ isDark, toggleTheme }) {
               <form onSubmit={handleAddBudget}>
                 <div className="mb-4"><label className="block text-xs text-gray-400 mb-2">CATEGORY</label><input type="text" value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="e.g., Groceries" className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${isDark ? 'bg-[#1e1e2e] border-gray-700' : 'bg-gray-50 border-gray-300'}`} required /></div>
                 <div className="mb-4"><label className="block text-xs text-gray-400 mb-2">MONTH</label><input type="month" value={newMonth} onChange={(e) => setNewMonth(e.target.value)} className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark] ${isDark ? 'bg-[#1e1e2e] border-gray-700' : 'bg-gray-50 border-gray-300'}`} required /></div>
-                <div className="mb-6"><label className="block text-xs text-gray-400 mb-2">BUDGET AMOUNT ($)</label><input type="number" step="0.01" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} placeholder="0.00" className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${isDark ? 'bg-[#1e1e2e] border-gray-700' : 'bg-gray-50 border-gray-300'}`} required /></div>
+                <div className="mb-4"><label className="block text-xs text-gray-400 mb-2">BUDGET AMOUNT ($)</label><input type="number" step="0.01" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} placeholder="0.00" className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${isDark ? 'bg-[#1e1e2e] border-gray-700' : 'bg-gray-50 border-gray-300'}`} required /></div>
+
+                {errorMsg && (
+                  <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-4">{errorMsg}</p>
+                )}
+
                 <div className="flex space-x-4">
                   <button type="button" onClick={() => { setIsModalOpen(false); resetModal(); }} disabled={loading} className="flex-1 py-3 border rounded-lg transition-colors disabled:opacity-50">Cancel</button>
                   <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-70">

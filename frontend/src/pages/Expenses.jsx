@@ -9,8 +9,9 @@ export default function Expenses({ isDark, toggleTheme }) {
   const [expenses, setExpenses] = useState([]);
   const [budgetCategories, setBudgetCategories] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false); // State for the loading spinner
-  
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   const [category, setCategory] = useState('');
@@ -48,13 +49,13 @@ export default function Expenses({ isDark, toggleTheme }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    setErrorMsg('');
     if (!amount || !date || !description || !category) {
-      // You can replace this with a small red text error under the button if you prefer, 
-      // but for now it prevents empty submissions.
-      return; 
+      setErrorMsg('Please fill in all fields.');
+      return;
     }
 
-    setLoading(true); // Start circular loading
+    setLoading(true);
 
     try {
       await API.post('/expenses/', {
@@ -63,15 +64,26 @@ export default function Expenses({ isDark, toggleTheme }) {
         description: description,
         expense_date: date
       });
-      
-      setIsOpen(false); // Close modal only AFTER successful save
+
+      setIsOpen(false);
       resetForm();
-      fetchExpenses(); 
+      fetchExpenses();
     } catch (error) {
       console.error("Failed to save expense.", error);
-      // Optionally show a small error message in the UI here instead of alert
+      if (error.response) {
+        const detail = error.response.data?.detail;
+        setErrorMsg(
+          typeof detail === 'string' ? detail :
+          Array.isArray(detail) ? detail.map(d => d.msg).join(', ') :
+          `Failed to save (status ${error.response.status}).`
+        );
+      } else if (error.request) {
+        setErrorMsg('No response from server — check your connection or the backend URL.');
+      } else {
+        setErrorMsg('Something went wrong while saving.');
+      }
     } finally {
-      setLoading(false); // Stop circular loading
+      setLoading(false);
     }
   };
 
@@ -79,6 +91,7 @@ export default function Expenses({ isDark, toggleTheme }) {
     setAmount('');
     setDate('');
     setDescription('');
+    setErrorMsg('');
     if (budgetCategories.length > 0) setCategory(budgetCategories[0]);
     else setCategory('');
   };
@@ -133,7 +146,7 @@ export default function Expenses({ isDark, toggleTheme }) {
                 <h2 className="text-xl font-bold">Add Expense</h2>
                 <button onClick={() => { setIsOpen(false); resetForm(); }} disabled={loading}><X size={24} className="text-gray-400 hover:text-white" /></button>
               </div>
-              
+
               <form onSubmit={handleSave}>
                 <div className="text-center p-6 bg-[#1e1e2e] rounded-lg border border-gray-700 mb-6">
                   <p className="text-gray-400 text-sm">AMOUNT</p>
@@ -162,16 +175,18 @@ export default function Expenses({ isDark, toggleTheme }) {
                   <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What was this for?" className="w-full bg-[#1e1e2e] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" required />
                 </div>
 
-                {/* Made Optional visually */}
                 <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-gray-500 transition-colors mb-6">
                   <Upload size={24} className="mb-2" />
                   <p className="text-sm">Upload receipt <span className="text-xs text-gray-600">(Optional)</span></p>
                 </div>
 
+                {errorMsg && (
+                  <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-4">{errorMsg}</p>
+                )}
+
                 <div className="flex space-x-4">
                   <button type="button" onClick={() => { setIsOpen(false); resetForm(); }} disabled={loading} className="flex-1 py-3 border border-gray-700 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">Cancel</button>
-                  
-                  {/* Circular Loading Spinner added here */}
+
                   <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed">
                     {loading ? (
                       <>

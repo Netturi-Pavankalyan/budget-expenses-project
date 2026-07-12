@@ -1,30 +1,70 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown } from 'lucide-react';
-
-const spendData = [
-  { name: 'Food & Dining', amount: 850, limit: 1000 },
-  { name: 'Transportation', amount: 620, limit: 500 },
-  { name: 'Entertainment', amount: 200, limit: 300 },
-];
-
-const comparisonData = [
-  { month: 'Jan', expenses: 4000 },
-  { month: 'Feb', expenses: 3000 },
-  { month: 'Mar', expenses: 5000 },
-  { month: 'Apr', expenses: 4500 },
-  { month: 'May', expenses: 3800 },
-  { month: 'Jun', expenses: 4280 },
-];
-
-const recentExpenses = [
-  { name: 'Whole Foods Market', category: 'Groceries', amount: -84.50, date: 'Jun 12' },
-  { name: 'Uber Trip', category: 'Transport', amount: -24.00, date: 'Jun 11' },
-  { name: 'Netflix Subscription', category: 'Entertainment', amount: -15.99, date: 'Jun 10' },
-];
+import API from '../api/axiosConfig';
 
 export default function Dashboard({ isDark, toggleTheme }) {
+  const navigate = useNavigate();
+  const now = new Date();
+  const currentMonth = now.toISOString().slice(0, 7);
+
+  const [summary, setSummary] = useState({ total_expenses: 0, total_budget: 0 });
+  const [budgets, setBudgets] = useState([]);
+  const [recentExpenses, setRecentExpenses] = useState([]);
+  const [comparisonData, setComparisonData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!localStorage.getItem('token')) navigate('/');
+  }, [navigate]);
+
+  const monthLabel = (dateObj) => dateObj.toLocaleString('default', { month: 'short' });
+  const monthStr = (dateObj) => dateObj.toISOString().slice(0, 7);
+
+  const fetchDashboard = async () => {
+    setLoading(true);
+    try {
+      const [summaryRes, budgetsRes, expensesRes] = await Promise.all([
+        API.get(`/dashboard/monthly-summary?month=${currentMonth}`),
+        API.get(`/budgets/?month=${currentMonth}`),
+        API.get('/expenses/'),
+      ]);
+
+      setSummary(summaryRes.data);
+      setBudgets(budgetsRes.data);
+      setRecentExpenses(expensesRes.data.slice(0, 5));
+
+      // Build last 6 months of spend for the comparison chart
+      const months = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push(d);
+      }
+      const monthlyTotals = await Promise.all(
+        months.map(async (d) => {
+          try {
+            const res = await API.get(`/dashboard/monthly-summary?month=${monthStr(d)}`);
+            return { month: monthLabel(d), expenses: res.data.total_expenses };
+          } catch {
+            return { month: monthLabel(d), expenses: 0 };
+          }
+        })
+      );
+      setComparisonData(monthlyTotals);
+    } catch (error) {
+      console.error("Failed to load dashboard data", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchDashboard(); }, []);
+
+  const remaining = summary.total_budget - summary.total_expenses;
+  const percentUsed = summary.total_budget > 0 ? ((summary.total_expenses / summary.total_budget) * 100).toFixed(1) : 0;
+
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: isDark ? '#0a0a0f' : '#f3f4f6', color: isDark ? 'white' : 'black' }}>
       <Sidebar isDark={isDark} toggleTheme={toggleTheme} />
@@ -32,89 +72,108 @@ export default function Dashboard({ isDark, toggleTheme }) {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">Dashboard</h1>
-            <p className="text-gray-500 text-sm">Welcome back, Analyst</p>
+            <p className="text-gray-500 text-sm">Welcome back</p>
           </div>
           <div className={`text-sm px-4 py-2 rounded-lg border ${isDark ? 'text-gray-400 bg-[#12121a] border-gray-800' : 'text-gray-600 bg-white border-gray-200'}`}>
-            June 2024 Financial Cycle
+            {now.toLocaleString('default', { month: 'long', year: 'numeric' })}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className={`p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
-            <p className="text-gray-400 text-sm">Total Spent</p>
-            <h2 className="text-3xl font-bold mt-2">$4,280.50</h2>
-            <div className="flex items-center mt-2 text-sm text-red-400">
-              <TrendingUp size={16} className="mr-1" /> 12% from last month
-            </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
           </div>
-          <div className={`p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
-            <p className="text-gray-400 text-sm">Total Budget</p>
-            <h2 className="text-3xl font-bold mt-2">$6,000.00</h2>
-            <p className="text-gray-500 text-sm mt-2">2024 Fiscal Year</p>
-          </div>
-          <div className={`p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
-            <p className="text-gray-400 text-sm">Remaining</p>
-            <h2 className="text-3xl font-bold mt-2 text-green-400">$1,719.50</h2>
-            <div className="flex items-center mt-2 text-sm text-green-400">
-              <TrendingDown size={16} className="mr-1" /> 28.6% of budget
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className={`lg:col-span-1 p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
-            <h3 className="font-semibold mb-6">Budget Limits</h3>
-            <div className="space-y-6">
-              {spendData.map((item, index) => (
-                <div key={index}>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{item.name}</span>
-                    <span className="text-gray-400">${item.amount} / ${item.limit}</span>
-                  </div>
-                  <div className={`w-full rounded-full h-2 ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`}>
-                    <div className={`h-2 rounded-full ${item.amount > item.limit ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.min((item.amount / item.limit) * 100, 100)}%` }}></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className={`lg:col-span-2 p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
-            <h3 className="font-semibold mb-6">Spend Comparison</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={comparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#1e1e2e" : "#e5e7eb"} />
-                  <XAxis dataKey="month" stroke="#4b5563" fontSize={12} />
-                  <YAxis stroke="#4b5563" fontSize={12} />
-                  <Tooltip />
-                  <Bar dataKey="expenses" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        <div className={`p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
-          <h3 className="font-semibold mb-6">Recent Expenses</h3>
-          <div className="space-y-4">
-            {recentExpenses.map((item, index) => (
-              <div key={index} className={`flex items-center justify-between py-3 border-b last:border-0 ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-                <div className="flex items-center space-x-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-blue-400 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>{item.name.charAt(0)}</div>
-                  <div>
-                    <p className="font-medium text-sm">{item.name}</p>
-                    <p className="text-xs text-gray-500">{item.category}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-red-400">{item.amount}</p>
-                  <p className="text-xs text-gray-500">{item.date}</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className={`p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+                <p className="text-gray-400 text-sm">Total Spent</p>
+                <h2 className="text-3xl font-bold mt-2">${summary.total_expenses.toFixed(2)}</h2>
+                <div className="flex items-center mt-2 text-sm text-red-400">
+                  <TrendingUp size={16} className="mr-1" /> {percentUsed}% of budget used
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className={`p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+                <p className="text-gray-400 text-sm">Total Budget</p>
+                <h2 className="text-3xl font-bold mt-2">${summary.total_budget.toFixed(2)}</h2>
+                <p className="text-gray-500 text-sm mt-2">{now.toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
+              </div>
+              <div className={`p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+                <p className="text-gray-400 text-sm">Remaining</p>
+                <h2 className={`text-3xl font-bold mt-2 ${remaining < 0 ? 'text-red-400' : 'text-green-400'}`}>${remaining.toFixed(2)}</h2>
+                <div className={`flex items-center mt-2 text-sm ${remaining < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  <TrendingDown size={16} className="mr-1" /> {remaining < 0 ? 'Over budget' : `${(100 - percentUsed).toFixed(1)}% left`}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className={`lg:col-span-1 p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+                <h3 className="font-semibold mb-6">Budget Limits</h3>
+                {budgets.length === 0 ? (
+                  <p className="text-sm text-gray-500">No budgets set for this month.</p>
+                ) : (
+                  <div className="space-y-6">
+                    {budgets.map((item) => (
+                      <div key={item.id}>
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{item.category}</span>
+                          <span className="text-gray-400">${item.used_amount.toFixed(2)} / ${item.budget_amount.toFixed(2)}</span>
+                        </div>
+                        <div className={`w-full rounded-full h-2 ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                          <div className={`h-2 rounded-full ${item.used_amount > item.budget_amount ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(item.percentage_consumed, 100)}%` }}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className={`lg:col-span-2 p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+                <h3 className="font-semibold mb-6">Spend Comparison (Last 6 Months)</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={comparisonData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#1e1e2e" : "#e5e7eb"} />
+                      <XAxis dataKey="month" stroke="#4b5563" fontSize={12} />
+                      <YAxis stroke="#4b5563" fontSize={12} />
+                      <Tooltip />
+                      <Bar dataKey="expenses" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            <div className={`p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+              <h3 className="font-semibold mb-6">Recent Expenses</h3>
+              {recentExpenses.length === 0 ? (
+                <p className="text-sm text-gray-500">No expenses recorded yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {recentExpenses.map((item) => (
+                    <div key={item.id} className={`flex items-center justify-between py-3 border-b last:border-0 ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                      <div className="flex items-center space-x-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-blue-400 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>{item.category.charAt(0)}</div>
+                        <div>
+                          <p className="font-medium text-sm">{item.description}</p>
+                          <p className="text-xs text-gray-500">{item.category}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium text-red-400">-${item.amount.toFixed(2)}</p>
+                        <p className="text-xs text-gray-500">{item.expense_date}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </main>
     </div>
   );

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://localhost:8000', // Change this to your Render URL later!
+  baseURL: 'https://budget-expenses-project-5s9g.onrender.com',
 });
 
 // Automatically attach the JWT token to every request

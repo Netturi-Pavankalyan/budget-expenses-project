@@ -21,7 +21,7 @@ export default function Accounts({ isDark, toggleTheme }) {
   useEffect(() => { if (!localStorage.getItem('token')) navigate('/'); }, [navigate]);
 
   return (
-    <div className="flex min-h-screen">
+    <div className={`flex min-h-screen transition-colors ${isDark ? 'bg-[#0a0a0f] text-white' : 'bg-gray-100 text-black'}`}>
       <Sidebar isDark={isDark} toggleTheme={toggleTheme} />
       <main className="flex-1 p-8 overflow-y-auto">
         <div className="mb-8">
@@ -47,7 +47,7 @@ export default function Accounts({ isDark, toggleTheme }) {
                 </div>
                 <div className="flex items-center space-x-6 w-full md:w-auto justify-between md:justify-end">
                   <div className="text-right">
-                    <p className={`text-xl font-bold ${acc.balance < 0 ? 'text-red-400' : 'text-white'}`}>{acc.balance < 0 ? '-' : ''}${Math.abs(acc.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                    <p className={`text-xl font-bold ${acc.balance < 0 ? 'text-red-400' : (isDark ? 'text-white' : 'text-black')}`}>{acc.balance < 0 ? '-' : ''}${Math.abs(acc.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                   </div>
                   <div className={`flex items-center space-x-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${acc.status === 'Syncing' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-green-500/10 text-green-400'}`}>
                     {acc.status === 'Syncing' && <RefreshCw size={12} className="animate-spin" />}
