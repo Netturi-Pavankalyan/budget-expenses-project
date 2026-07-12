@@ -39,7 +39,8 @@ export default function Sidebar({ isDark, toggleTheme }) {
         </nav>
       </div>
 
-      <div className="space-y-4 pt-6 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'}">
+      {/* FIXED: Added the missing backtick before space-y-4 here */}
+      <div className={`space-y-4 pt-6 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
         <button onClick={toggleTheme} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isDark ? 'text-gray-400 hover:bg-gray-800 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-black'}`}>
           {isDark ? <Moon size={20} /> : <Sun size={20} />}
           <span>{isDark ? 'Dark Mode' : 'Light Mode'}</span>

@@ -47,8 +47,7 @@ export default function SignIn() {
       {/* Left Side */}
       <div className="hidden lg:flex w-1/2 flex-col justify-between p-12 relative overflow-hidden">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Budget <span className="text-blue-500">Tracker</span></h1>
-          <p className="text-gray-500 text-sm mt-1">System Version 2.4.0</p>
+<h1 className="text-3xl font-bold tracking-tight">FinTrack <span className="text-blue-500">Finance</span></h1>          <p className="text-gray-500 text-sm mt-1">System Version 2.4.0</p>
         </div>
         <div className="space-y-6">
           <h2 className="text-4xl font-bold leading-tight">Precision finance for the <br/><span className="text-blue-400">modern analyst.</span></h2>
