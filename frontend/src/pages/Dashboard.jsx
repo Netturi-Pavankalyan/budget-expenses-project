@@ -1,14 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import API from '../api/axiosConfig';
+
+function ChartTooltip({ active, payload, label, isDark }) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div
+      className={`px-4 py-3 rounded-lg border shadow-xl ${
+        isDark ? 'bg-[#1a1a24] border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
+      }`}
+    >
+      <p className="text-xs text-gray-400 mb-1">{label}</p>
+      <p className="text-sm font-semibold">
+        ${payload[0].value.toFixed(2)}
+      </p>
+    </div>
+  );
+}
 
 export default function Dashboard({ isDark, toggleTheme }) {
   const navigate = useNavigate();
   const now = new Date();
-  const currentMonth = now.toISOString().slice(0, 7);
+  const toMonthStr = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+  const currentMonth = toMonthStr(now);
 
   const [summary, setSummary] = useState({ total_expenses: 0, total_budget: 0 });
   const [budgets, setBudgets] = useState([]);
@@ -21,7 +38,7 @@ export default function Dashboard({ isDark, toggleTheme }) {
   }, [navigate]);
 
   const monthLabel = (dateObj) => dateObj.toLocaleString('default', { month: 'short' });
-  const monthStr = (dateObj) => dateObj.toISOString().slice(0, 7);
+  const monthStr = toMonthStr;
 
   const fetchDashboard = async () => {
     setLoading(true);
@@ -36,10 +53,20 @@ export default function Dashboard({ isDark, toggleTheme }) {
       setBudgets(budgetsRes.data);
       setRecentExpenses(expensesRes.data.slice(0, 5));
 
+      // Anchor the window to "today", or the latest expense's month if it's further out
+      // (expenses come back ordered by expense_date desc, so [0] is the most recent/future one)
+      let anchorDate = now;
+      if (expensesRes.data.length > 0) {
+        const latestExpenseDate = new Date(`${expensesRes.data[0].expense_date}T00:00:00`);
+        if (latestExpenseDate > anchorDate) {
+          anchorDate = latestExpenseDate;
+        }
+      }
+
       // Build last 6 months of spend for the comparison chart
       const months = [];
       for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const d = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - i, 1);
         months.push(d);
       }
       const monthlyTotals = await Promise.all(
@@ -136,12 +163,49 @@ export default function Dashboard({ isDark, toggleTheme }) {
                 <h3 className="font-semibold mb-6">Spend Comparison (Last 6 Months)</h3>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={comparisonData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#1e1e2e" : "#e5e7eb"} />
-                      <XAxis dataKey="month" stroke="#4b5563" fontSize={12} />
-                      <YAxis stroke="#4b5563" fontSize={12} />
-                      <Tooltip />
-                      <Bar dataKey="expenses" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <BarChart data={comparisonData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="barFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#60a5fa" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.7} />
+                        </linearGradient>
+                        <linearGradient id="barFillActive" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#a78bfa" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.85} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid
+                        strokeDasharray="0"
+                        vertical={false}
+                        stroke={isDark ? '#1e1e2e' : '#f0f1f3'}
+                      />
+                      <XAxis
+                        dataKey="month"
+                        stroke="transparent"
+                        tick={{ fill: isDark ? '#6b7280' : '#9ca3af', fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        stroke="transparent"
+                        tick={{ fill: isDark ? '#6b7280' : '#9ca3af', fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v) => `$${v}`}
+                        width={56}
+                      />
+                      <Tooltip
+                        content={<ChartTooltip isDark={isDark} />}
+                        cursor={false}
+                      />
+                      <Bar dataKey="expenses" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                        {comparisonData.map((entry, index) => (
+                          <Cell
+                            key={entry.month}
+                            fill={index === comparisonData.length - 1 ? 'url(#barFillActive)' : 'url(#barFill)'}
+                          />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
