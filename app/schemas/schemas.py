@@ -1,7 +1,23 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from datetime import date
 from typing import Optional
 from pydantic import ConfigDict
+import re
+
+MONTH_RE = re.compile(r"^(\d{4})-(\d{1,2})$")
+
+def normalize_month(value: str) -> str:
+    """Normalize 'YYYY-M' or 'YYYY-MM' -> 'YYYY-MM', raise if invalid."""
+    if not isinstance(value, str):
+        raise ValueError("month must be a string in 'YYYY-MM' format")
+    match = MONTH_RE.match(value.strip())
+    if not match:
+        raise ValueError("month must be in 'YYYY-MM' format, e.g. '2026-03'")
+    year, mon = match.groups()
+    mon_int = int(mon)
+    if not (1 <= mon_int <= 12):
+        raise ValueError("month segment must be between 01 and 12")
+    return f"{year}-{mon_int:02d}"
 
 # AUTH
 class UserCreate(BaseModel):
@@ -43,6 +59,11 @@ class BudgetCreate(BaseModel):
     month: str
     category: str
     budget_amount: float
+
+    @field_validator("month")
+    @classmethod
+    def _normalize_month(cls, v: str) -> str:
+        return normalize_month(v)
 
 class BudgetOut(BaseModel):
     id: int

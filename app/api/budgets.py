@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date
 from app.db.database import get_db
-from app.schemas.schemas import BudgetCreate, BudgetOut
+from app.schemas.schemas import BudgetCreate, BudgetOut, normalize_month
 from app.models.models import Budget, Expense, User
 from app.core.config import get_current_user
 
@@ -23,7 +23,7 @@ def create_budget(
     if existing:
         raise HTTPException(status_code=400, detail="Budget already exists for this month/category")
 
-    db_budget = Budget(**budget.dict(), user_id=user.id)
+    db_budget = Budget(**budget.model_dump(), user_id=user.id)
     db.add(db_budget)
     db.commit()
     db.refresh(db_budget)
@@ -31,6 +31,11 @@ def create_budget(
 
 @router.get("/", response_model=list[BudgetOut])
 def get_budgets(month: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    try:
+        month = normalize_month(month)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     budgets = db.query(Budget).filter(Budget.user_id == user.id, Budget.month == month).all()
 
     results = []

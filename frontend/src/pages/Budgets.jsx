@@ -6,12 +6,15 @@ import API from '../api/axiosConfig';
 
 export default function Budgets({ isDark, toggleTheme }) {
   const navigate = useNavigate();
+  const toMonthStr = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
   const currentDate = new Date();
-  const [currentMonth, setCurrentMonth] = useState(currentDate.toISOString().slice(0, 7));
+  const [currentMonth, setCurrentMonth] = useState(toMonthStr(currentDate));
   const [budgets, setBudgets] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [fetchErrorMsg, setFetchErrorMsg] = useState('');
+  const [fetching, setFetching] = useState(false);
   const [newCategory, setNewCategory] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newMonth, setNewMonth] = useState(currentMonth);
@@ -19,13 +22,31 @@ export default function Budgets({ isDark, toggleTheme }) {
   useEffect(() => { if (!localStorage.getItem('token')) navigate('/'); }, [navigate]);
 
   const fetchBudgets = async () => {
+    setFetching(true);
+    setFetchErrorMsg('');
     try {
       const response = await API.get(`/budgets/?month=${currentMonth}`);
       setBudgets(response.data);
-    } catch (error) { console.error(error); }
+    } catch (error) {
+      console.error(error);
+      if (error.response?.status === 401) {
+        setFetchErrorMsg('Your session expired. Please log in again.');
+        localStorage.removeItem('token');
+        navigate('/');
+      } else if (error.response) {
+        setFetchErrorMsg(`Failed to load budgets (status ${error.response.status}).`);
+      } else if (error.request) {
+        setFetchErrorMsg('No response from server — check your connection or the backend URL.');
+      } else {
+        setFetchErrorMsg('Something went wrong while loading budgets.');
+      }
+    } finally {
+      setFetching(false);
+    }
   };
 
   useEffect(() => { fetchBudgets(); }, [currentMonth]);
+  useEffect(() => { setNewMonth(currentMonth); }, [currentMonth]);
 
   const handleAddBudget = async (e) => {
     e.preventDefault();
@@ -37,7 +58,13 @@ export default function Budgets({ isDark, toggleTheme }) {
     setLoading(true);
     try {
       await API.post('/budgets/', { month: newMonth, category: newCategory, budget_amount: parseFloat(newAmount) });
-      setIsModalOpen(false); resetModal(); fetchBudgets();
+      setIsModalOpen(false);
+      if (newMonth !== currentMonth) {
+        setCurrentMonth(newMonth); // switches the view; useEffect above refetches for it
+      } else {
+        fetchBudgets();
+      }
+      resetModal();
     } catch (error) {
       console.error(error);
       if (error.response) {
@@ -63,12 +90,12 @@ export default function Budgets({ isDark, toggleTheme }) {
     } catch (error) { console.error("Failed to delete", error) }
   };
 
-  const resetModal = () => { setNewCategory(''); setNewAmount(''); setNewMonth(currentMonth); setErrorMsg(''); };
+  const resetModal = () => { setNewCategory(''); setNewAmount(''); setErrorMsg(''); };
   const changeMonth = (direction) => {
     const [y, m] = currentMonth.split('-').map(Number);
-    const date = new Date(y, m - 1 + direction);
-    const str = date.toISOString().slice(0, 7);
-    setCurrentMonth(str); setNewMonth(str);
+    const date = new Date(y, m - 1 + direction, 1);
+    const str = toMonthStr(date);
+    setCurrentMonth(str);
   };
   const formatMonth = (dateStr) => { if (!dateStr) return ''; return new Date(dateStr + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); };
   const totalBudget = budgets.reduce((acc, item) => acc + item.budget_amount, 0);
@@ -86,9 +113,16 @@ export default function Budgets({ isDark, toggleTheme }) {
               <span className="min-w-[120px] text-center">{formatMonth(currentMonth)}</span>
               <ChevronRight size={16} className="cursor-pointer hover:text-blue-400" onClick={() => changeMonth(1)} />
             </div>
+            <button onClick={fetchBudgets} disabled={fetching} title="Refresh" className={`px-3 py-2 rounded-lg border text-sm transition-colors disabled:opacity-50 ${isDark ? 'bg-[#12121a] border-gray-800 text-gray-300 hover:text-white' : 'bg-white border-gray-300 text-gray-700 hover:text-black'}`}>
+              {fetching ? '…' : '⟳'}
+            </button>
             <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">Add budget</button>
           </div>
         </div>
+
+        {fetchErrorMsg && (
+          <p className="mb-6 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">{fetchErrorMsg}</p>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {budgets.length === 0 ? (
