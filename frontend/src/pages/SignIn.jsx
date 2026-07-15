@@ -24,10 +24,16 @@ export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [slowNotice, setSlowNotice] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setSlowNotice(false);
+    // The free-tier backend spins down when idle, so the first request after
+    // a while can take 30-60s to "wake up". Let the user know instead of
+    // leaving them staring at a stuck button.
+    const slowTimer = setTimeout(() => setSlowNotice(true), 4000);
     try {
       const response = await API.post('/auth/login', { email, password });
       // Save the JWT token to local storage
@@ -38,7 +44,9 @@ export default function SignIn() {
       alert("Login failed. Please check your credentials.");
       console.error(error);
     } finally {
+      clearTimeout(slowTimer);
       setLoading(false);
+      setSlowNotice(false);
     }
   };
 
@@ -47,15 +55,11 @@ export default function SignIn() {
       {/* Left Side */}
       <div className="hidden lg:flex w-1/2 flex-col justify-between p-12 relative overflow-hidden">
         <div>
-<h1 className="text-3xl font-bold tracking-tight">FinTrack <span className="text-blue-500">Finance</span></h1>          <p className="text-gray-500 text-sm mt-1">System Version 2.4.0</p>
+<h1 className="text-3xl font-bold tracking-tight">FinTrack <span className="text-blue-500">Finance</span></h1>
         </div>
         <div className="space-y-6">
           <h2 className="text-4xl font-bold leading-tight">Precision finance for the <br/><span className="text-blue-400">modern analyst.</span></h2>
           <p className="text-gray-400 max-w-md">Leverage real-time data visualization and automated expense tracking to manage your digital assets securely.</p>
-          <div className="flex items-center space-x-4 text-xs text-gray-500">
-            <span className="bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full font-medium">NODE_LATENCY 0.024ms</span>
-            <span>API UPTIME 99.998%</span>
-          </div>
         </div>
         <div className="h-32 w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -83,22 +87,13 @@ export default function SignIn() {
             <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-medium py-3 rounded-lg transition-colors">
               {loading ? 'Signing In...' : 'Continue to Dashboard'}
             </button>
+            {slowNotice && (
+              <p className="text-xs text-gray-500 text-center">
+                Still working — the server can take up to a minute to wake up on its first request.
+              </p>
+            )}
           </form>
-          
-          <div className="pt-6 border-t border-gray-800">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4 text-center lg:text-left">Security Protocols</p>
-            <div className="flex justify-center lg:justify-start space-x-6 text-sm text-gray-400">
-              <div className="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors">
-                <div className="w-8 h-4 bg-gray-700 rounded-full relative"><div className="absolute left-1 top-1 w-2 h-2 bg-blue-500 rounded-full"></div></div>
-                <span>Corporate SSO</span>
-              </div>
-              <div className="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors">
-                <div className="w-8 h-4 bg-gray-700 rounded-full relative"><div className="absolute left-1 top-1 w-2 h-2 bg-blue-500 rounded-full"></div></div>
-                <span>API Access</span>
-              </div>
-            </div>
-          </div>
-          
+
           {/* FIXED NAVIGATION HERE */}
           <p className="text-center text-sm text-gray-500">
             Don't have an account? <Link to="/register" className="text-blue-500 hover:text-blue-400 font-medium">Create a new account</Link>

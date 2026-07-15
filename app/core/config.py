@@ -11,7 +11,12 @@ from app.models.models import User
 # Config
 SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_key_change_me")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+# Was 60 (1 hour) — this app has no refresh-token flow, so a short expiry
+# meant users got bounced back to Sign In every time they reopened the app
+# after a bit of inactivity. 7 days keeps a "logged in" session feeling
+# persistent, matching how the frontend never re-checks credentials once
+# a token is stored.
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
 oauth2_scheme = HTTPBearer()
 

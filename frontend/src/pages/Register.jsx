@@ -11,10 +11,16 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [slowNotice, setSlowNotice] = useState(false);
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setSlowNotice(false);
+    // The free-tier backend spins down when idle, so the first request after
+    // a while can take 30-60s to "wake up". Let the user know instead of
+    // leaving them staring at a stuck button.
+    const slowTimer = setTimeout(() => setSlowNotice(true), 4000);
     try {
       // Matches your FastAPI UserCreate schema exactly
       await API.post('/auth/register', { name, email, password });
@@ -24,7 +30,9 @@ export default function Register() {
       alert("Registration failed. Email might already be in use.");
       console.error(error);
     } finally {
+      clearTimeout(slowTimer);
       setLoading(false);
+      setSlowNotice(false);
     }
   };
 
@@ -32,15 +40,10 @@ export default function Register() {
     <div className="min-h-screen flex bg-[#0a0a0f] text-white font-sans">
       <div className="hidden lg:flex w-1/2 flex-col justify-between p-12">
         <div>
-<h1 className="text-3xl font-bold tracking-tight">FinTrack <span className="text-blue-500">Finance</span></h1>          <p className="text-gray-500 text-sm mt-1">System Version 2.4.0</p>
+<h1 className="text-3xl font-bold tracking-tight">FinTrack <span className="text-blue-500">Finance</span></h1>
         </div>
         <div className="space-y-6">
           <h2 className="text-4xl font-bold leading-tight">Precision finance for the <br/><span className="text-blue-400">modern analyst.</span></h2>
-          <div className="flex items-center space-x-4 text-xs text-gray-500">
-            <span className="bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full">0.024ms</span>
-            <span>API UPTIME 99.998%</span>
-            <span>SYNC RATE 12.5 GB/s</span>
-          </div>
           <div className="h-32 w-full">
             <ResponsiveContainer width="100%" height="100%"><BarChart data={data}><Tooltip /><Bar dataKey="uv" fill="#3b82f6" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
           </div>
@@ -69,15 +72,13 @@ export default function Register() {
             <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-medium py-3 rounded-lg transition-colors">
               {loading ? 'Creating Account...' : 'Create Account'}
             </button>
+            {slowNotice && (
+              <p className="text-xs text-gray-500 text-center">
+                Still working — the server can take up to a minute to wake up on its first request.
+              </p>
+            )}
           </form>
-          
-          <div className="pt-6 border-t border-gray-800">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Security Protocols</p>
-            <div className="flex space-x-6 text-sm text-gray-400">
-              <div className="flex items-center space-x-2"><div className="w-8 h-4 bg-gray-700 rounded-full relative"><div className="absolute left-1 top-1 w-2 h-2 bg-blue-500 rounded-full"></div></div><span>2FA Protocol</span></div>
-              <div className="flex items-center space-x-2"><div className="w-8 h-4 bg-gray-700 rounded-full relative"><div className="absolute left-1 top-1 w-2 h-2 bg-gray-500 rounded-full"></div></div><span>IP Whitelisting</span></div>
-            </div>
-          </div>
+
           <p className="text-center text-sm text-gray-500">
             Already have an account? <Link to="/" className="text-blue-500 hover:text-blue-400 font-medium">Sign In</Link>
           </p>

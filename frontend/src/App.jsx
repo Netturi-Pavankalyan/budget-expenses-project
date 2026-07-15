@@ -8,6 +8,20 @@ import Budgets from './pages/Budgets';
 import Calendar from './pages/Calendar';
 import Accounts from './pages/Accounts';
 
+// If a token is already saved, there's no reason to show the sign-in /
+// register forms again — send the user straight to the dashboard.
+function RedirectIfAuthed({ children }) {
+  const token = localStorage.getItem('token');
+  return token ? <Navigate to="/dashboard" replace /> : children;
+}
+
+// If there's no token, don't render the authenticated pages at all —
+// bounce back to sign-in instead of showing an empty/broken dashboard.
+function RequireAuth({ children }) {
+  const token = localStorage.getItem('token');
+  return token ? children : <Navigate to="/" replace />;
+}
+
 function App() {
   const [isDark, setIsDark] = useState(true);
 
@@ -19,13 +33,13 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<SignIn />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/dashboard" element={<Dashboard isDark={isDark} toggleTheme={toggleTheme} />} />
-      <Route path="/expenses" element={<Expenses isDark={isDark} toggleTheme={toggleTheme} />} />
-      <Route path="/budgets" element={<Budgets isDark={isDark} toggleTheme={toggleTheme} />} />
-      <Route path="/calendar" element={<Calendar isDark={isDark} toggleTheme={toggleTheme} />} />
-      <Route path="/accounts" element={<Accounts isDark={isDark} toggleTheme={toggleTheme} />} />
+      <Route path="/" element={<RedirectIfAuthed><SignIn /></RedirectIfAuthed>} />
+      <Route path="/register" element={<RedirectIfAuthed><Register /></RedirectIfAuthed>} />
+      <Route path="/dashboard" element={<RequireAuth><Dashboard isDark={isDark} toggleTheme={toggleTheme} /></RequireAuth>} />
+      <Route path="/expenses" element={<RequireAuth><Expenses isDark={isDark} toggleTheme={toggleTheme} /></RequireAuth>} />
+      <Route path="/budgets" element={<RequireAuth><Budgets isDark={isDark} toggleTheme={toggleTheme} /></RequireAuth>} />
+      <Route path="/calendar" element={<RequireAuth><Calendar isDark={isDark} toggleTheme={toggleTheme} /></RequireAuth>} />
+      <Route path="/accounts" element={<RequireAuth><Accounts isDark={isDark} toggleTheme={toggleTheme} /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
