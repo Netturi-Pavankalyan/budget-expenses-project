@@ -19,6 +19,9 @@ export default function Expenses({ isDark, toggleTheme }) {
 
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [fetchingExpenses, setFetchingExpenses] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [slowNotice, setSlowNotice] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem('token')) navigate('/');
@@ -40,11 +43,22 @@ export default function Expenses({ isDark, toggleTheme }) {
   };
 
   const fetchExpenses = async () => {
+    setFetchingExpenses(true);
+    setSlowNotice(false);
+    // Free-tier backends spin down when idle — the first request after a
+    // while can take 30-60s to "wake up". Flag it after a few seconds so
+    // an empty table doesn't read as broken.
+    const slowTimer = setTimeout(() => setSlowNotice(true), 4000);
     try {
       const response = await API.get('/expenses/');
       setExpenses(response.data);
     } catch (error) {
       console.error("Failed to fetch expenses", error);
+    } finally {
+      clearTimeout(slowTimer);
+      setFetchingExpenses(false);
+      setSlowNotice(false);
+      setHasLoadedOnce(true);
     }
   };
 
@@ -176,7 +190,23 @@ export default function Expenses({ isDark, toggleTheme }) {
               </tr>
             </thead>
             <tbody>
-              {expenses.length === 0 ? (
+              {!hasLoadedOnce && fetchingExpenses ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <svg className="animate-spin h-6 w-6 text-blue-500" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      {slowNotice && (
+                        <span className="text-xs max-w-xs">
+                          Still loading — the server can take up to a minute to wake up on its first request.
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : expenses.length === 0 ? (
                 <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">No expenses found.</td></tr>
               ) : (
                 expenses.map((exp) => (
