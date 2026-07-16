@@ -24,17 +24,18 @@ export default function Expenses({ isDark, toggleTheme }) {
     if (!localStorage.getItem('token')) navigate('/');
   }, [navigate]);
 
-  const fetchCategories = async () => {
+  // Loads only the categories that have a budget for the given month
+  // (e.g. "2026-08") — matching the month of whatever date is picked below,
+  // not every category you've ever budgeted for.
+  const fetchCategoriesForMonth = async (monthStr) => {
     try {
-      // Pulls every category you've ever created a budget for, not just
-      // ones with a budget in the current calendar month — so a category
-      // shows up here right away, no matter which month you set it for.
-      const response = await API.get('/budgets/categories');
-      const cats = response.data;
+      const response = await API.get(`/budgets/?month=${monthStr}`);
+      const cats = response.data.map((b) => b.category);
       setBudgetCategories(cats);
       setCategory((prev) => (prev && cats.includes(prev)) ? prev : (cats[0] || ''));
     } catch (error) {
       console.error("Failed to fetch categories", error);
+      setBudgetCategories([]);
     }
   };
 
@@ -62,14 +63,22 @@ export default function Expenses({ isDark, toggleTheme }) {
 
   useEffect(() => {
     fetchExpenses();
-    fetchCategories();
   }, []);
 
-  // Re-check for new categories every time the modal is opened, so a budget
-  // you just added on the Budgets page shows up here without a page reload.
+  // When the modal opens, default the date to today (if empty) so there's
+  // always a month to look budgets up for.
   useEffect(() => {
-    if (isOpen) fetchCategories();
+    if (isOpen && !date) {
+      setDate(new Date().toISOString().slice(0, 10));
+    }
   }, [isOpen]);
+
+  // Re-fetch the category list every time the selected date's month changes —
+  // this is what keeps the dropdown scoped to "budgets that exist for the
+  // month you're logging this expense in", not every budget you've ever made.
+  useEffect(() => {
+    if (date) fetchCategoriesForMonth(date.slice(0, 7));
+  }, [date]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -211,9 +220,14 @@ export default function Expenses({ isDark, toggleTheme }) {
                       {budgetCategories.length > 0 ? (
                         budgetCategories.map((cat, index) => (<option key={index} value={cat}>{cat}</option>))
                       ) : (
-                        <option value="" disabled>No budgets set yet</option>
+                        <option value="" disabled>No budgets set for this month</option>
                       )}
                     </select>
+                    {date && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Showing budgets for {new Date(date + 'T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })}
+                      </p>
+                    )}
                   </div>
                 </div>
 
