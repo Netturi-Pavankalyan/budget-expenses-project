@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import API from '../api/axiosConfig';
 
 function ChartTooltip({ active, payload, label, isDark }) {
@@ -23,9 +23,8 @@ function ChartTooltip({ active, payload, label, isDark }) {
 
 export default function Dashboard({ isDark, toggleTheme }) {
   const navigate = useNavigate();
-  const now = new Date();
   const toMonthStr = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-  const currentMonth = toMonthStr(now);
+  const [currentMonth, setCurrentMonth] = useState(toMonthStr(new Date()));
 
   const [summary, setSummary] = useState({ total_expenses: 0, total_budget: 0 });
   const [budgets, setBudgets] = useState([]);
@@ -40,6 +39,12 @@ export default function Dashboard({ isDark, toggleTheme }) {
 
   const monthLabel = (dateObj) => dateObj.toLocaleString('default', { month: 'short' });
   const monthStr = toMonthStr;
+  const formatMonth = (m) => new Date(m + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' });
+  const changeMonth = (direction) => {
+    const [y, m] = currentMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + direction, 1);
+    setCurrentMonth(toMonthStr(d));
+  };
 
   const fetchDashboard = async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
@@ -55,17 +60,10 @@ export default function Dashboard({ isDark, toggleTheme }) {
       setBudgets(budgetsRes.data);
       setRecentExpenses(expensesRes.data.slice(0, 5));
 
-      // Anchor the window to "today", or the latest expense's month if it's further out
-      // (expenses come back ordered by expense_date desc, so [0] is the most recent/future one)
-      let anchorDate = now;
-      if (expensesRes.data.length > 0) {
-        const latestExpenseDate = new Date(`${expensesRes.data[0].expense_date}T00:00:00`);
-        if (latestExpenseDate > anchorDate) {
-          anchorDate = latestExpenseDate;
-        }
-      }
-
-      // Build last 6 months of spend for the comparison chart
+      // Build 6 months of spend ending on whichever month is selected, so
+      // the comparison chart moves along with the month picker.
+      const [selY, selM] = currentMonth.split('-').map(Number);
+      const anchorDate = new Date(selY, selM - 1, 1);
       const months = [];
       for (let i = 5; i >= 0; i--) {
         const d = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - i, 1);
@@ -90,7 +88,7 @@ export default function Dashboard({ isDark, toggleTheme }) {
     }
   };
 
-  useEffect(() => { fetchDashboard(); }, []);
+  useEffect(() => { fetchDashboard(); }, [currentMonth]);
 
   const remaining = summary.total_budget - summary.total_expenses;
   const percentUsed = summary.total_budget > 0 ? ((summary.total_expenses / summary.total_budget) * 100).toFixed(1) : 0;
@@ -105,8 +103,10 @@ export default function Dashboard({ isDark, toggleTheme }) {
             <p className="text-gray-500 text-sm">Welcome back</p>
           </div>
           <div className="flex items-center space-x-3">
-            <div className={`text-sm px-4 py-2 rounded-lg border ${isDark ? 'text-gray-400 bg-[#12121a] border-gray-800' : 'text-gray-600 bg-white border-gray-200'}`}>
-              {now.toLocaleString('default', { month: 'long', year: 'numeric' })}
+            <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg border text-sm ${isDark ? 'bg-[#12121a] border-gray-800 text-gray-300' : 'bg-white border-gray-300 text-gray-700'}`}>
+              <ChevronLeft size={16} className="cursor-pointer hover:text-blue-400" onClick={() => changeMonth(-1)} />
+              <span className="min-w-[140px] text-center">{formatMonth(currentMonth)}</span>
+              <ChevronRight size={16} className="cursor-pointer hover:text-blue-400" onClick={() => changeMonth(1)} />
             </div>
             <button
               onClick={() => fetchDashboard(true)}
@@ -139,7 +139,7 @@ export default function Dashboard({ isDark, toggleTheme }) {
               <div className={`p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
                 <p className="text-gray-400 text-sm">Total Budget</p>
                 <h2 className="text-3xl font-bold mt-2">${summary.total_budget.toFixed(2)}</h2>
-                <p className="text-gray-500 text-sm mt-2">{now.toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
+                <p className="text-gray-500 text-sm mt-2">{formatMonth(currentMonth)}</p>
               </div>
               <div className={`p-6 rounded-xl border ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
                 <p className="text-gray-400 text-sm">Remaining</p>
