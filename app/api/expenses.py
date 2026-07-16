@@ -33,6 +33,16 @@ def get_expenses(
         query = query.filter(Expense.expense_date <= end_date)
     return query.order_by(Expense.expense_date.desc()).all()
 
+@router.delete("/clear-all", status_code=200)
+def clear_all_expenses(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Deletes every expense belonging to the current user. Used by the
+    'Clear All' button on the Expenses page. Does not touch budgets —
+    once the expenses are gone, used_amount for every budget naturally
+    goes back to 0 the next time budgets are fetched."""
+    deleted = db.query(Expense).filter(Expense.user_id == user.id).delete()
+    db.commit()
+    return {"deleted": deleted}
+
 @router.delete("/{expense_id}", status_code=204)
 def delete_expense(
     expense_id: int,

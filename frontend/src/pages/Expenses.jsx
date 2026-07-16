@@ -17,6 +17,9 @@ export default function Expenses({ isDark, toggleTheme }) {
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
 
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
   useEffect(() => {
     if (!localStorage.getItem('token')) navigate('/');
   }, [navigate]);
@@ -41,6 +44,19 @@ export default function Expenses({ isDark, toggleTheme }) {
       setExpenses(response.data);
     } catch (error) {
       console.error("Failed to fetch expenses", error);
+    }
+  };
+
+  const handleClearAll = async () => {
+    setClearing(true);
+    try {
+      await API.delete('/expenses/clear-all');
+      setExpenses([]);
+      setConfirmingClear(false);
+    } catch (error) {
+      console.error("Failed to clear expenses", error);
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -110,10 +126,33 @@ export default function Expenses({ isDark, toggleTheme }) {
       <main className="flex-1 p-8 relative overflow-hidden">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-bold">Expenses</h1>
-          <button onClick={() => setIsOpen(true)} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-            <Plus size={18} />
-            <span>Add Expense</span>
-          </button>
+          <div className="flex items-center space-x-3">
+            {confirmingClear ? (
+              <div className="flex items-center space-x-2 text-sm">
+                <span className="text-gray-400">Delete all expenses?</span>
+                <button onClick={() => setConfirmingClear(false)} disabled={clearing} className="px-3 py-2 rounded-lg border border-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50">Cancel</button>
+                <button onClick={handleClearAll} disabled={clearing} className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-70 flex items-center gap-2">
+                  {clearing && (
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  )}
+                  {clearing ? 'Deleting...' : 'Yes, delete all'}
+                </button>
+              </div>
+            ) : (
+              expenses.length > 0 && (
+                <button onClick={() => setConfirmingClear(true)} className="px-3 py-2 rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 text-sm transition-colors">
+                  Clear All
+                </button>
+              )
+            )}
+            <button onClick={() => setIsOpen(true)} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+              <Plus size={18} />
+              <span>Add Expense</span>
+            </button>
+          </div>
         </div>
 
         <div className={`rounded-xl border overflow-hidden ${isDark ? 'bg-[#12121a] border-gray-800' : 'bg-white border-gray-200 shadow-sm'}`}>
