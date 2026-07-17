@@ -3,18 +3,38 @@ from sqlalchemy.orm import Session
 from datetime import date
 from app.db.database import get_db
 from app.schemas.schemas import ExpenseCreate, ExpenseOut
-from app.models.models import Expense, User
+from app.models.models import Expense, User, Account
 from app.core.config import get_current_user
 
 router = APIRouter()
 
 @router.post("/", response_model=ExpenseOut, status_code=201)
 def add_expense(expense: ExpenseCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    account = None
+    if expense.account_id:
+        account = db.query(Account).filter(
+            Account.id == expense.account_id, Account.user_id == user.id
+        ).first()
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+    elif not expense.category:
+        # Not paid from a linked account, so it needs a budget category
+        # (this is the "Others" flow in the Add Expense form).
+        raise HTTPException(status_code=422, detail="Choose an account or a category.")
+
     db_expense = Expense(**expense.dict(), user_id=user.id)
     db.add(db_expense)
+
+    if account:
+        account.balance -= expense.amount
+
     db.commit()
     db.refresh(db_expense)
-    return db_expense
+
+    result = ExpenseOut.model_validate(db_expense)
+    if account:
+        result.account_name = account.name
+    return result
 
 @router.get("/", response_model=list[ExpenseOut])
 def get_expenses(
@@ -38,15 +58,31 @@ def get_expenses(
             query = query.filter(Expense.expense_date >= start_date)
         if end_date:
             query = query.filter(Expense.expense_date <= end_date)
-    return query.order_by(Expense.expense_date.desc()).all()
+    rows = query.order_by(Expense.expense_date.desc()).all()
+
+    results = []
+    for row in rows:
+        item = ExpenseOut.model_validate(row)
+        if row.account:
+            item.account_name = row.account.name
+        results.append(item)
+    return results
 
 @router.delete("/clear-all", status_code=200)
 def clear_all_expenses(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Deletes every expense belonging to the current user. Used by the
-    'Clear All' button on the Expenses page. Does not touch budgets —
-    once the expenses are gone, used_amount for every budget naturally
-    goes back to 0 the next time budgets are fetched."""
-    deleted = db.query(Expense).filter(Expense.user_id == user.id).delete()
+    'Clear All' button on the Expenses page. Any expense that was paid from
+    a linked account has its amount refunded back to that account's balance
+    first, so balances stay accurate — and budgets naturally go back to $0
+    the next time they're fetched."""
+    expenses = db.query(Expense).filter(Expense.user_id == user.id).all()
+    for exp in expenses:
+        if exp.account_id:
+            account = db.query(Account).filter(Account.id == exp.account_id).first()
+            if account:
+                account.balance += exp.amount
+    deleted = len(expenses)
+    db.query(Expense).filter(Expense.user_id == user.id).delete()
     db.commit()
     return {"deleted": deleted}
 
@@ -61,5 +97,9 @@ def delete_expense(
     ).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
+    if expense.account_id:
+        account = db.query(Account).filter(Account.id == expense.account_id).first()
+        if account:
+            account.balance += expense.amount
     db.delete(expense)
     db.commit()

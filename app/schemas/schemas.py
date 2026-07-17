@@ -42,16 +42,19 @@ class Token(BaseModel):
 # EXPENSES
 class ExpenseCreate(BaseModel):
     amount: float
-    category: str
+    category: Optional[str] = None
     description: Optional[str] = None
     expense_date: date
+    account_id: Optional[int] = None  # set when paid from a linked bank account
 
 class ExpenseOut(BaseModel):
     id: int
     amount: float
-    category: str
+    category: Optional[str]
     description: Optional[str]
     expense_date: date
+    account_id: Optional[int] = None
+    account_name: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 # BUDGETS
@@ -80,3 +83,40 @@ class MonthlySummary(BaseModel):
     month: str
     total_expenses: float
     total_budget: float
+
+# ACCOUNTS
+ACCOUNT_TYPES = {"Checking", "Savings", "Credit", "Investment", "Other"}
+
+class AccountCreate(BaseModel):
+    name: str
+    bank: str
+    type: str
+    balance: float = 0.0
+
+    @field_validator("type")
+    @classmethod
+    def _valid_type(cls, v: str) -> str:
+        if v not in ACCOUNT_TYPES:
+            raise ValueError(f"type must be one of {sorted(ACCOUNT_TYPES)}")
+        return v
+
+class AccountUpdate(BaseModel):
+    name: Optional[str] = None
+    bank: Optional[str] = None
+    type: Optional[str] = None
+    balance: Optional[float] = None
+
+    @field_validator("type")
+    @classmethod
+    def _valid_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ACCOUNT_TYPES:
+            raise ValueError(f"type must be one of {sorted(ACCOUNT_TYPES)}")
+        return v
+
+class AccountOut(BaseModel):
+    id: int
+    name: str
+    bank: str
+    type: str
+    balance: float
+    model_config = ConfigDict(from_attributes=True)

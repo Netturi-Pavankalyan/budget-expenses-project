@@ -21,6 +21,14 @@ export default function Expenses({ isDark, toggleTheme }) {
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
 
+  // "account" = paid from a linked bank account (date locked to today, pick
+  // an account instead of a category). "category" = the original flow
+  // (pick a date, then a budget category for that month).
+  const [payFrom, setPayFrom] = useState('category');
+  const [accounts, setAccounts] = useState([]);
+  const [accountId, setAccountId] = useState('');
+  const [fetchingAccounts, setFetchingAccounts] = useState(false);
+
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [fetchingExpenses, setFetchingExpenses] = useState(false);
@@ -43,6 +51,20 @@ export default function Expenses({ isDark, toggleTheme }) {
     } catch (error) {
       console.error("Failed to fetch categories", error);
       setBudgetCategories([]);
+    }
+  };
+
+  const fetchAccounts = async () => {
+    setFetchingAccounts(true);
+    try {
+      const response = await API.get('/accounts/');
+      setAccounts(response.data);
+      setAccountId((prev) => (prev && response.data.some(a => a.id === prev)) ? prev : (response.data[0]?.id || ''));
+    } catch (error) {
+      console.error("Failed to fetch accounts", error);
+      setAccounts([]);
+    } finally {
+      setFetchingAccounts(false);
     }
   };
 
@@ -93,13 +115,26 @@ export default function Expenses({ isDark, toggleTheme }) {
   // this is what keeps the dropdown scoped to "budgets that exist for the
   // month you're logging this expense in", not every budget you've ever made.
   useEffect(() => {
-    if (date) fetchCategoriesForMonth(date.slice(0, 7));
-  }, [date]);
+    if (payFrom === 'category' && date) fetchCategoriesForMonth(date.slice(0, 7));
+  }, [date, payFrom]);
+
+  // Bank Account flow: load the account list once you switch to it.
+  useEffect(() => {
+    if (payFrom === 'account' && isOpen) fetchAccounts();
+  }, [payFrom, isOpen]);
 
   const handleSave = async (e) => {
     e.preventDefault();
     setErrorMsg('');
-    if (!amount || !date || !description || !category) {
+    const today = new Date().toISOString().slice(0, 10);
+    const effectiveDate = payFrom === 'account' ? today : date;
+
+    if (payFrom === 'account') {
+      if (!amount || !description || !accountId) {
+        setErrorMsg('Please fill in all fields.');
+        return;
+      }
+    } else if (!amount || !date || !description || !category) {
       setErrorMsg('Please fill in all fields.');
       return;
     }
@@ -107,13 +142,12 @@ export default function Expenses({ isDark, toggleTheme }) {
     setLoading(true);
 
     try {
-      const savedMonth = date.slice(0, 7);
-      await API.post('/expenses/', {
-        amount: parseFloat(amount),
-        category: category,
-        description: description,
-        expense_date: date
-      });
+      const savedMonth = effectiveDate.slice(0, 7);
+      const payload = payFrom === 'account'
+        ? { amount: parseFloat(amount), description, expense_date: effectiveDate, account_id: accountId }
+        : { amount: parseFloat(amount), description, expense_date: effectiveDate, category };
+
+      await API.post('/expenses/', payload);
 
       setIsOpen(false);
       resetForm();
@@ -145,6 +179,8 @@ export default function Expenses({ isDark, toggleTheme }) {
     setDate(new Date().toISOString().slice(0, 10));
     setDescription('');
     setErrorMsg('');
+    setPayFrom('category');
+    setAccountId('');
     if (budgetCategories.length > 0) setCategory(budgetCategories[0]);
     else setCategory('');
   };
@@ -223,7 +259,13 @@ export default function Expenses({ isDark, toggleTheme }) {
                 expenses.map((exp) => (
                   <tr key={exp.id} className={`border-b transition-colors ${isDark ? 'border-gray-800 hover:bg-[#1e1e2e]' : 'border-gray-100 hover:bg-gray-50'}`}>
                     <td className="px-6 py-4 font-medium">{exp.description}</td>
-                    <td className="px-6 py-4 text-gray-400">{exp.category}</td>
+                    <td className="px-6 py-4 text-gray-400">
+                      {exp.category ? exp.category : (
+                        <span className="inline-flex items-center gap-1 text-blue-400">
+                          🏦 {exp.account_name || 'Bank Account'}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-gray-400">{exp.expense_date}</td>
                     <td className="px-6 py-4 font-medium text-red-400">- ${exp.amount.toFixed(2)}</td>
                     <td className="px-6 py-4">
@@ -250,27 +292,75 @@ export default function Expenses({ isDark, toggleTheme }) {
                   <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="bg-transparent text-4xl font-bold mt-1 w-full text-center outline-none text-white placeholder-gray-600" placeholder="0.00" required />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-2">DATE</label>
-                    <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-[#1e1e2e] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark]" required />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-2">CATEGORY</label>
-                    <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-[#1e1e2e] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark]" required>
-                      {budgetCategories.length > 0 ? (
-                        budgetCategories.map((cat, index) => (<option key={index} value={cat}>{cat}</option>))
-                      ) : (
-                        <option value="" disabled>No budgets set for this month</option>
-                      )}
-                    </select>
-                    {date && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Showing budgets for {new Date(date + 'T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })}
-                      </p>
-                    )}
+                <div className="mb-4">
+                  <label className="block text-xs text-gray-400 mb-2">PAY FROM</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPayFrom('account')}
+                      className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${payFrom === 'account' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-[#1e1e2e] border-gray-700 text-gray-400 hover:text-white'}`}
+                    >
+                      Bank Account
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPayFrom('category')}
+                      className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${payFrom === 'category' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-[#1e1e2e] border-gray-700 text-gray-400 hover:text-white'}`}
+                    >
+                      Others
+                    </button>
                   </div>
                 </div>
+
+                {payFrom === 'account' ? (
+                  <div className="mb-4">
+                    <label className="block text-xs text-gray-400 mb-2">ACCOUNT</label>
+                    {fetchingAccounts ? (
+                      <div className="flex items-center gap-2 text-sm text-gray-500 px-3 py-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Loading accounts...
+                      </div>
+                    ) : accounts.length > 0 ? (
+                      <select value={accountId} onChange={(e) => setAccountId(Number(e.target.value))} className="w-full bg-[#1e1e2e] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark]" required>
+                        {accounts.map((acc) => (
+                          <option key={acc.id} value={acc.id}>{acc.name} • {acc.bank} (${acc.balance.toFixed(2)})</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-sm text-gray-500 px-3 py-2 border border-gray-700 rounded-lg bg-[#1e1e2e]">
+                        No accounts yet — add one on the Accounts page first.
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Dated today ({new Date().toLocaleString('default', { month: 'long', day: 'numeric', year: 'numeric' })}) — the amount will be deducted from this account's balance.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-2">DATE</label>
+                      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-[#1e1e2e] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark]" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-2">CATEGORY</label>
+                      <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-[#1e1e2e] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 [color-scheme:dark]" required>
+                        {budgetCategories.length > 0 ? (
+                          budgetCategories.map((cat, index) => (<option key={index} value={cat}>{cat}</option>))
+                        ) : (
+                          <option value="" disabled>No budgets set for this month</option>
+                        )}
+                      </select>
+                      {date && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Showing budgets for {new Date(date + 'T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mb-4">
                   <label className="block text-xs text-gray-400 mb-2">DESCRIPTION</label>

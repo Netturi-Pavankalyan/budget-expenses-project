@@ -20,18 +20,21 @@ class User(Base):
     
     expenses = relationship("Expense", back_populates="owner")
     budgets = relationship("Budget", back_populates="owner")
+    accounts = relationship("Account", back_populates="owner")
 
 class Expense(Base):
     __tablename__ = "expenses"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     amount = Column(Float, nullable=False)
-    category = Column(String, nullable=False)
+    category = Column(String, nullable=True)
     description = Column(String, nullable=True)
     expense_date = Column(Date, nullable=False)
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     owner = relationship("User", back_populates="expenses")
+    account = relationship("Account")
 
 class Budget(Base):
     __tablename__ = "budgets"
@@ -42,6 +45,19 @@ class Budget(Base):
     budget_amount = Column(Float, nullable=False)
     
     owner = relationship("User", back_populates="budgets")
+
+class Account(Base):
+    __tablename__ = "accounts"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    bank = Column(String, nullable=False)
+    type = Column(String, nullable=False)  # Checking, Savings, Credit, Investment, Other
+    balance = Column(Float, nullable=False, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner = relationship("User", back_populates="accounts")
 
 class RecurringExpense(Base):
     __tablename__ = "recurring_expenses"
