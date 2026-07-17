@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from datetime import date
 from app.db.database import get_db
 from app.schemas.schemas import ExpenseCreate, ExpenseOut
@@ -28,7 +29,16 @@ def add_expense(expense: ExpenseCreate, db: Session = Depends(get_db), user: Use
     if account:
         account.balance -= expense.amount
 
-    db.commit()
+    try:
+        db.commit()
+    except SQLAlchemyError as e:
+        db.rollback()
+        # Surfaces as a real, visible error instead of the request just
+        # dying with no response — if this ever fires, it means the
+        # database schema is out of sync with the app (e.g. a column the
+        # app expects doesn't exist on this database yet).
+        raise HTTPException(status_code=500, detail=f"Database error while saving expense: {e}")
+
     db.refresh(db_expense)
 
     result = ExpenseOut.model_validate(db_expense)
