@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
-import { X, Upload, Plus } from 'lucide-react';
+import { X, Upload, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import API from '../api/axiosConfig';
 
 export default function Expenses({ isDark, toggleTheme }) {
   const navigate = useNavigate();
+  const toMonthStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const formatMonth = (m) => new Date(m + '-01T00:00:00').toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const [listMonth, setListMonth] = useState(toMonthStr(new Date()));
   const [expenses, setExpenses] = useState([]);
   const [budgetCategories, setBudgetCategories] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -50,7 +54,7 @@ export default function Expenses({ isDark, toggleTheme }) {
     // an empty table doesn't read as broken.
     const slowTimer = setTimeout(() => setSlowNotice(true), 4000);
     try {
-      const response = await API.get('/expenses/');
+      const response = await API.get(`/expenses/?month=${listMonth}`);
       setExpenses(response.data);
     } catch (error) {
       console.error("Failed to fetch expenses", error);
@@ -60,6 +64,12 @@ export default function Expenses({ isDark, toggleTheme }) {
       setSlowNotice(false);
       setHasLoadedOnce(true);
     }
+  };
+
+  const changeListMonth = (direction) => {
+    const [y, m] = listMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + direction, 1);
+    setListMonth(toMonthStr(d));
   };
 
   const handleClearAll = async () => {
@@ -77,7 +87,7 @@ export default function Expenses({ isDark, toggleTheme }) {
 
   useEffect(() => {
     fetchExpenses();
-  }, []);
+  }, [listMonth]);
 
   // Re-fetch the category list every time the selected date's month changes —
   // this is what keeps the dropdown scoped to "budgets that exist for the
@@ -97,6 +107,7 @@ export default function Expenses({ isDark, toggleTheme }) {
     setLoading(true);
 
     try {
+      const savedMonth = date.slice(0, 7);
       await API.post('/expenses/', {
         amount: parseFloat(amount),
         category: category,
@@ -106,7 +117,10 @@ export default function Expenses({ isDark, toggleTheme }) {
 
       setIsOpen(false);
       resetForm();
-      fetchExpenses();
+      // Jump the list to whatever month this expense was logged in, so it's
+      // visible immediately even if you were viewing a different month.
+      if (savedMonth === listMonth) fetchExpenses();
+      else setListMonth(savedMonth);
     } catch (error) {
       console.error("Failed to save expense.", error);
       if (error.response) {
@@ -142,9 +156,14 @@ export default function Expenses({ isDark, toggleTheme }) {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-bold">Expenses</h1>
           <div className="flex items-center space-x-3">
+            <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg border text-sm ${isDark ? 'bg-[#12121a] border-gray-800 text-gray-300' : 'bg-white border-gray-300 text-gray-700'}`}>
+              <ChevronLeft size={16} className="cursor-pointer hover:text-blue-400" onClick={() => changeListMonth(-1)} />
+              <span className="min-w-[140px] text-center">{formatMonth(listMonth)}</span>
+              <ChevronRight size={16} className="cursor-pointer hover:text-blue-400" onClick={() => changeListMonth(1)} />
+            </div>
             {confirmingClear ? (
               <div className="flex items-center space-x-2 text-sm">
-                <span className="text-gray-400">Delete all expenses?</span>
+                <span className="text-gray-400">Delete ALL expenses (every month)?</span>
                 <button onClick={() => setConfirmingClear(false)} disabled={clearing} className="px-3 py-2 rounded-lg border border-gray-700 hover:bg-gray-800 transition-colors disabled:opacity-50">Cancel</button>
                 <button onClick={handleClearAll} disabled={clearing} className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-70 flex items-center gap-2">
                   {clearing && (
@@ -199,7 +218,7 @@ export default function Expenses({ isDark, toggleTheme }) {
                   </td>
                 </tr>
               ) : expenses.length === 0 ? (
-                <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">No expenses found.</td></tr>
+                <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">No expenses found for {formatMonth(listMonth)}.</td></tr>
               ) : (
                 expenses.map((exp) => (
                   <tr key={exp.id} className={`border-b transition-colors ${isDark ? 'border-gray-800 hover:bg-[#1e1e2e]' : 'border-gray-100 hover:bg-gray-50'}`}>

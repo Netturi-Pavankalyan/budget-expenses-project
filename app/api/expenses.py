@@ -19,6 +19,7 @@ def add_expense(expense: ExpenseCreate, db: Session = Depends(get_db), user: Use
 @router.get("/", response_model=list[ExpenseOut])
 def get_expenses(
     category: str = Query(None),
+    month: str = Query(None, description="Filter to a single month, e.g. '2026-08'"),
     start_date: date = Query(None),
     end_date: date = Query(None),
     db: Session = Depends(get_db), 
@@ -27,10 +28,16 @@ def get_expenses(
     query = db.query(Expense).filter(Expense.user_id == user.id)
     if category:
         query = query.filter(Expense.category == category)
-    if start_date:
-        query = query.filter(Expense.expense_date >= start_date)
-    if end_date:
-        query = query.filter(Expense.expense_date <= end_date)
+    if month:
+        year, mon = map(int, month.split("-"))
+        start_date = date(year, mon, 1)
+        end_date = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
+        query = query.filter(Expense.expense_date >= start_date, Expense.expense_date < end_date)
+    else:
+        if start_date:
+            query = query.filter(Expense.expense_date >= start_date)
+        if end_date:
+            query = query.filter(Expense.expense_date <= end_date)
     return query.order_by(Expense.expense_date.desc()).all()
 
 @router.delete("/clear-all", status_code=200)
