@@ -234,10 +234,10 @@ export default function Dashboard({ isDark, toggleTheme }) {
                   {recentExpenses.map((item) => (
                     <div key={item.id} className={`flex items-center justify-between py-3 border-b last:border-0 ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                       <div className="flex items-center space-x-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-blue-400 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>{item.category.charAt(0)}</div>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-blue-400 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>{item.category ? item.category.charAt(0) : '🏦'}</div>
                         <div>
                           <p className="font-medium text-sm">{item.description}</p>
-                          <p className="text-xs text-gray-500">{item.category}</p>
+                          <p className="text-xs text-gray-500">{item.category || (item.account_name ? `Bank: ${item.account_name}` : 'Bank Account')}</p>
                         </div>
                       </div>
                       <div className="text-right">

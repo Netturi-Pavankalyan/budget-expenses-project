@@ -131,11 +131,11 @@ export default function Calendar({ isDark, toggleTheme }) {
                   <div key={item.id} className={`flex items-center justify-between pb-4 border-b last:border-0 ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                     <div className="flex items-center space-x-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold ${isDark ? 'bg-gray-800 text-blue-400' : 'bg-gray-100 text-blue-600'}`}>
-                        {item.category.charAt(0)}
+                        {item.category ? item.category.charAt(0) : '🏦'}
                       </div>
                       <div>
                         <p className="text-sm font-medium">{item.description}</p>
-                        <p className="text-xs text-gray-500">{item.category} • {item.expense_date}</p>
+                        <p className="text-xs text-gray-500">{item.category || (item.account_name ? `Bank: ${item.account_name}` : 'Bank Account')} • {item.expense_date}</p>
                       </div>
                     </div>
                     <p className="text-sm font-semibold text-red-400">-${item.amount.toFixed(2)}</p>
@@ -167,11 +167,11 @@ export default function Calendar({ isDark, toggleTheme }) {
                       <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg ${isDark ? 'bg-[#1e1e2e]' : 'bg-gray-50'}`}>
                         <div className="flex items-center space-x-3">
                           <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold ${isDark ? 'bg-gray-800 text-blue-400' : 'bg-gray-100 text-blue-600'}`}>
-                            {item.category.charAt(0)}
+                            {item.category ? item.category.charAt(0) : '🏦'}
                           </div>
                           <div>
                             <p className="text-sm font-medium">{item.description}</p>
-                            <p className="text-xs text-gray-500">{item.category}</p>
+                            <p className="text-xs text-gray-500">{item.category || (item.account_name ? `Bank: ${item.account_name}` : 'Bank Account')}</p>
                           </div>
                         </div>
                         <p className="text-sm font-semibold text-red-400">-${item.amount.toFixed(2)}</p>
